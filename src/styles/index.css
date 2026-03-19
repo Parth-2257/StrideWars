@@ -14,7 +14,7 @@ body {
 }
 
 /* Pulsing Marker Animation */
-.pulse-marker {
+.pulse-dot {
   width: 18px;
   height: 18px;
   background-color: #39FF14;
@@ -24,7 +24,7 @@ body {
   z-index: 5;
 }
 
-.pulse-marker::after {
+.pulse-dot::after {
   content: "";
   position: absolute;
   top: 50%;
