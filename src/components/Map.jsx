@@ -17,7 +17,6 @@ function Map() {
   const isRunningRef = useRef(false);
   const gpsPointsRef = useRef([]);
   const startTimeRef = useRef(null);
-  const lastPointTimeRef = useRef(0);
 
   const [toastMessage, setToastMessage] = useState('');
   const [gpsStatus, setGpsStatus] = useState('searching');
@@ -37,7 +36,7 @@ function Map() {
     } else {
       startTimeRef.current = Date.now();
       gpsPointsRef.current = [];
-      lastPointTimeRef.current = 0;
+      setDistanceKm('0.00');
       startStatsInterval();
     }
   }, [isRunning]);
@@ -60,27 +59,7 @@ function Map() {
 
       const points = gpsPointsRef.current;
       
-      let totalDist = 0;
-      for (let i = 1; i < points.length; i++) {
-        const p1 = turf.point([points[i-1].longitude, points[i-1].latitude]);
-        const p2 = turf.point([points[i].longitude, points[i].latitude]);
-        totalDist += turf.distance(p1, p2, { units: 'kilometers' });
-      }
-      setDistanceKm(totalDist.toFixed(2));
-
-      if (totalDist > 0 && elapsedSec > 0) {
-        const paceMinsPerKm = (elapsedSec / 60) / totalDist;
-        const pMins = Math.floor(paceMinsPerKm);
-        const pSecs = Math.floor((paceMinsPerKm - pMins) * 60).toString().padStart(2, '0');
-        if (paceMinsPerKm < 60) {
-          setPaceStr(`${pMins}:${pSecs}`);
-        } else {
-          setPaceStr('>60:00');
-        }
-      } else {
-        setPaceStr('0:00');
-      }
-
+      // Calculate Area (only display if >= 3 points can form a polygon hull)
       if (points.length >= 3) {
         const coords = points.map(p => [p.longitude, p.latitude]);
         const ptFeatures = coords.map(c => turf.point(c));
@@ -97,38 +76,22 @@ function Map() {
       } else {
         setAreaStr('0 m²');
       }
-    }, 1000);
-  };
 
-  const updateMapLayers = () => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-
-    const points = gpsPointsRef.current;
-    let lineGeojson = turf.featureCollection([]);
-    let fillGeojson = turf.featureCollection([]);
-
-    if (points.length >= 2) {
-      const coords = points.map(p => [p.longitude, p.latitude]);
-      lineGeojson = turf.lineString(coords);
-
-      if (points.length >= 3) {
-        const ptFeatures = coords.map(c => turf.point(c));
-        const hull = turf.convex(turf.featureCollection(ptFeatures));
-        if (hull) {
-          fillGeojson = hull;
+      // Calculate Pace
+      const dist = parseFloat(distanceKm);
+      if (dist > 0 && elapsedSec > 0) {
+        const paceMinsPerKm = (elapsedSec / 60) / dist;
+        const pMins = Math.floor(paceMinsPerKm);
+        const pSecs = Math.floor((paceMinsPerKm - pMins) * 60).toString().padStart(2, '0');
+        if (paceMinsPerKm < 60) {
+          setPaceStr(`${pMins}:${pSecs}`);
+        } else {
+          setPaceStr('>60:00');
         }
+      } else {
+        setPaceStr('0:00');
       }
-    }
-
-    const source = map.current.getSource('territory-source');
-    if (source) {
-      source.setData(fillGeojson.geometry || fillGeojson.features ? fillGeojson : {type: 'FeatureCollection', features: []});
-    }
-    
-    const lineSource = map.current.getSource('territory-line-source');
-    if (lineSource) {
-      lineSource.setData(lineGeojson.geometry ? lineGeojson : {type: 'FeatureCollection', features: []});
-    }
+    }, 1000);
   };
 
   const handleLocationUpdate = (pos) => {
@@ -140,45 +103,76 @@ function Map() {
     
     setCurrentLocation({ lat: latitude, lng: longitude });
 
+    // Problem 1 Fix
     if (marker.current) {
-      marker.current.setLngLat(newPos);
-    } else {
-      if (!markerEl.current) {
-        const el = document.createElement('div');
-        el.className = 'pulse-dot';
-        markerEl.current = el;
-      }
-      marker.current = new maptilersdk.Marker({ element: markerEl.current })
-        .setLngLat(newPos)
-        .addTo(map.current);
+      marker.current.remove();
     }
+    if (!markerEl.current) {
+      const el = document.createElement('div');
+      el.className = 'pulse-dot';
+      markerEl.current = el;
+    }
+    marker.current = new maptilersdk.Marker({ element: markerEl.current })
+      .setLngLat(newPos)
+      .addTo(map.current);
     
     if (map.current) {
       map.current.flyTo({ center: newPos, zoom: 15 });
     }
 
+    // Problem 2 Fix
     if (isRunningRef.current) {
-      const now = Date.now();
-      if (now - lastPointTimeRef.current >= 3000) {
-        const points = gpsPointsRef.current;
-        let isDuplicate = false;
-        
-        if (points.length > 0) {
-          const lastPoint = points[points.length - 1];
-          const p1 = turf.point([lastPoint.longitude, lastPoint.latitude]);
-          const p2 = turf.point([longitude, latitude]);
-          const distMeters = turf.distance(p1, p2, { units: 'kilometers' }) * 1000;
-          if (distMeters < 2) {
-            isDuplicate = true;
-          }
-        }
+      const newPoint = { latitude, longitude, timestamp: Date.now(), accuracy };
+      const updatedPoints = [...gpsPointsRef.current, newPoint];
+      gpsPointsRef.current = updatedPoints;
+      addGpsPoint(newPoint);
 
-        if (!isDuplicate) {
-          const newPoint = { latitude, longitude, timestamp: now, accuracy };
-          gpsPointsRef.current = [...points, newPoint];
-          lastPointTimeRef.current = now;
-          addGpsPoint(newPoint);
-          updateMapLayers();
+      let totalDist = 0;
+      for (let i = 1; i < updatedPoints.length; i++) {
+        const p1 = turf.point([updatedPoints[i-1].longitude, updatedPoints[i-1].latitude]);
+        const p2 = turf.point([updatedPoints[i].longitude, updatedPoints[i].latitude]);
+        totalDist += turf.distance(p1, p2, { units: 'kilometers' });
+      }
+      setDistanceKm(totalDist.toFixed(2));
+
+      // Problem 3 Fix
+      if (updatedPoints.length >= 3) {
+        const points = turf.featureCollection(updatedPoints.map(p => turf.point([p.longitude, p.latitude])));
+        // Turf uses convex, but if convexHull is aliased we support it
+        const hull = turf.convex ? turf.convex(points) : turf.convexHull(points);
+
+        if (hull) {
+          const source = map.current.getSource('territory-source');
+          if (source) {
+            source.setData(hull);
+          } else {
+            // Add fresh Source and Layers
+            map.current.addSource('territory-source', {
+              type: 'geojson',
+              data: hull
+            });
+
+            map.current.addLayer({
+              id: 'territory-fill-layer',
+              type: 'fill',
+              source: 'territory-source',
+              paint: {
+                'fill-color': '#39FF14',
+                'fill-opacity': 0.35
+              }
+            });
+
+            map.current.addLayer({
+              id: 'territory-polygon-border-layer',
+              type: 'line',
+              source: 'territory-source',
+              paint: {
+                'line-color': '#39FF14',
+                'line-width': 2,
+                'line-opacity': 0.8
+              }
+            });
+          }
         }
       }
     }
@@ -208,56 +202,17 @@ function Map() {
           attributionControl: false
         });
 
-        map.current.on('load', () => {
-          map.current.addSource('territory-source', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-          });
+        // Initialize Marker at boot
+        if (marker.current) {
+          marker.current.remove();
+        }
+        if (!markerEl.current) {
+          const el = document.createElement('div');
+          el.className = 'pulse-dot';
+          markerEl.current = el;
+        }
 
-          map.current.addLayer({
-            id: 'territory-fill-layer',
-            type: 'fill',
-            source: 'territory-source',
-            paint: {
-              'fill-color': '#39FF14',
-              'fill-opacity': 0.35
-            }
-          });
-
-          map.current.addLayer({
-            id: 'territory-polygon-border-layer',
-            type: 'line',
-            source: 'territory-source',
-            paint: {
-              'line-color': '#39FF14',
-              'line-width': 2,
-              'line-opacity': 0.8
-            }
-          });
-
-          map.current.addSource('territory-line-source', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] }
-          });
-
-          map.current.addLayer({
-            id: 'territory-line-layer',
-            type: 'line',
-            source: 'territory-line-source',
-            paint: {
-              'line-color': '#39FF14',
-              'line-width': 3,
-              'line-opacity': 0.6,
-              'line-dasharray': [2, 2]
-            }
-          });
-        });
-
-        const el = document.createElement('div');
-        el.className = 'pulse-dot';
-        markerEl.current = el;
-
-        marker.current = new maptilersdk.Marker({ element: el })
+        marker.current = new maptilersdk.Marker({ element: markerEl.current })
           .setLngLat(initialPos)
           .addTo(map.current);
 
@@ -294,9 +249,7 @@ function Map() {
       
       const source = map.current.getSource('territory-source');
       if (source) source.setData({ type: 'FeatureCollection', features: [] });
-      const lineSource = map.current.getSource('territory-line-source');
-      if (lineSource) lineSource.setData({ type: 'FeatureCollection', features: [] });
-
+      
       startRun();
     } else {
       const points = gpsPointsRef.current;
