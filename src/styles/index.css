@@ -7,8 +7,227 @@
 body {
   background-color: #0a0a0a;
   color: #ffffff;
-  font-family: sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+}
+
+/* Pulsing Marker Animation */
+.pulse-marker {
+  width: 18px;
+  height: 18px;
+  background-color: #39FF14;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: 0 0 15px #39FF14, 0 0 25px rgba(57, 255, 20, 0.6);
+  z-index: 5;
+}
+
+.pulse-marker::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background-color: transparent;
+  border: 2px solid rgba(57, 255, 20, 0.8);
+  animation: mapPulse 2s infinite cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+@keyframes mapPulse {
+  0% {
+    width: 18px;
+    height: 18px;
+    opacity: 1;
+    border-width: 3px;
+  }
+
+  100% {
+    width: 70px;
+    height: 70px;
+    opacity: 0;
+    border-width: 0px;
+  }
+}
+
+/* Bottom Panel Dashboard */
+.bottom-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(17, 17, 17, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px 20px 0 0;
+  padding: 16px 24px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 10;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.drag-handle-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: -4px;
+  margin-bottom: 4px;
+}
+
+.drag-handle {
+  width: 48px;
+  height: 5px;
+  background-color: #333;
+  border-radius: 4px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.territory-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.territory-value {
+  font-size: 2.75rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.territory-label {
+  font-size: 0.85rem;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.gps-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 16px;
+  border-radius: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.stat-item:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+  font-family: 'Space Mono', monospace, sans-serif;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.start-run-btn {
+  width: 100%;
+  background-color: #39FF14;
+  color: #111;
+  font-size: 1.25rem;
+  font-weight: 800;
+  padding: 18px;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  box-shadow: 0 0 25px rgba(57, 255, 20, 0.25);
+  transition: all 0.2s cubic-bezier(0.1, 0.8, 0.3, 1);
+}
+
+.start-run-btn:active {
+  transform: scale(0.97);
+  box-shadow: 0 0 15px rgba(57, 255, 20, 0.4);
+}
+
+.start-run-btn:disabled {
+  background-color: #222;
+  color: #555;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.toast {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(17, 17, 17, 0.95);
+  color: #fff;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: toastSlideDown 0.4s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideDown {
+  from {
+    transform: translate(-50%, -30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+.stop-run-btn {
+  background-color: #ff3939 !important;
+  color: #fff !important;
+  box-shadow: 0 0 25px rgba(255, 57, 57, 0.3) !important;
+}
+
+.stop-run-btn:active {
+  box-shadow: 0 0 15px rgba(255, 57, 57, 0.5) !important;
 }
