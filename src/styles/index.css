@@ -231,3 +231,116 @@ body {
 .stop-run-btn:active {
   box-shadow: 0 0 15px rgba(255, 57, 57, 0.5) !important;
 }
+
+/* Bottom Sheet */
+.bottom-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(17, 17, 17, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 24px 24px 0 0;
+  padding: 16px 24px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: 100;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease forwards;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sheet-date {
+  font-size: 0.9rem;
+  color: #aaa;
+  font-weight: 500;
+}
+
+.sheet-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 12px;
+  line-height: 1;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0 20px 0;
+}
+
+.sheet-area {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.sheet-area-label {
+  font-size: 0.9rem;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.sheet-stats {
+  width: 100%;
+}
+
+.delete-run-btn {
+  width: 100%;
+  background-color: #FF3B30;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 800;
+  padding: 18px;
+  border: none;
+  border-radius: 16px;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+  margin-top: 10px;
+}
+
+.delete-run-btn:active {
+  transform: scale(0.98);
+}

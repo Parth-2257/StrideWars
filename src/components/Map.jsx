@@ -3,8 +3,11 @@ import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
 import * as turf from '@turf/turf';
 import useRunStore from '../store/runStore';
+import BottomSheet from './BottomSheet';
 
 maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_KEY;
+
+const TERRITORY_COLORS = ['#39FF14', '#FF6B35', '#FF3CAC', '#7B2FFF', '#00D4FF', '#FFD700'];
 
 function Map() {
   const mapContainer = useRef(null);
@@ -21,13 +24,16 @@ function Map() {
   const [toastMessage, setToastMessage] = useState('');
   const [gpsStatus, setGpsStatus] = useState('searching');
   const [locationPermission, setLocationPermission] = useState('pending');
+  const [mapLoaded, setMapLoaded] = useState(false);
   
   const [distanceKm, setDistanceKm] = useState('0.00');
   const [durationStr, setDurationStr] = useState('00:00');
   const [paceStr, setPaceStr] = useState('0:00');
   const [areaStr, setAreaStr] = useState('0 m²');
 
-  const { isRunning, startRun, stopRun, addGpsPoint, setCurrentLocation } = useRunStore();
+  const [selectedRun, setSelectedRun] = useState(null);
+
+  const { isRunning, startRun, stopRun, addGpsPoint, setCurrentLocation, savedRuns, deleteRun } = useRunStore();
 
   useEffect(() => {
     isRunningRef.current = isRunning;
@@ -59,7 +65,7 @@ function Map() {
 
       const points = gpsPointsRef.current;
       
-      // Calculate Area (only display if >= 3 points can form a polygon hull)
+      // Calculate Area
       if (points.length >= 3) {
         const coords = points.map(p => [p.longitude, p.latitude]);
         const ptFeatures = coords.map(c => turf.point(c));
@@ -103,7 +109,6 @@ function Map() {
     
     setCurrentLocation({ lat: latitude, lng: longitude });
 
-    // Problem 1 Fix
     if (marker.current) {
       marker.current.remove();
     }
@@ -120,7 +125,6 @@ function Map() {
       map.current.flyTo({ center: newPos, zoom: 15 });
     }
 
-    // Problem 2 Fix
     if (isRunningRef.current) {
       const newPoint = { latitude, longitude, timestamp: Date.now(), accuracy };
       const updatedPoints = [...gpsPointsRef.current, newPoint];
@@ -135,10 +139,8 @@ function Map() {
       }
       setDistanceKm(totalDist.toFixed(2));
 
-      // Problem 3 Fix
       if (updatedPoints.length >= 3) {
         const points = turf.featureCollection(updatedPoints.map(p => turf.point([p.longitude, p.latitude])));
-        // Turf uses convex, but if convexHull is aliased we support it
         const hull = turf.convex ? turf.convex(points) : turf.convexHull(points);
 
         if (hull) {
@@ -146,7 +148,6 @@ function Map() {
           if (source) {
             source.setData(hull);
           } else {
-            // Add fresh Source and Layers
             map.current.addSource('territory-source', {
               type: 'geojson',
               data: hull
@@ -216,6 +217,10 @@ function Map() {
           .setLngLat(initialPos)
           .addTo(map.current);
 
+        map.current.on('load', () => {
+          setMapLoaded(true);
+        });
+
         watchId.current = navigator.geolocation.watchPosition(
           handleLocationUpdate,
           handleLocationError,
@@ -240,6 +245,105 @@ function Map() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sync Saved Runs to Map Layers
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    const activeRunIds = new Set(savedRuns.map(r => r.id.toString()));
+
+    savedRuns.forEach((run, index) => {
+      const sourceId = `territory-source-${run.id}`;
+      const fillId = `territory-fill-${run.id}`;
+      const lineId = `territory-line-${run.id}`;
+
+      if (!map.current.getSource(sourceId)) {
+        map.current.addSource(sourceId, {
+          type: 'geojson',
+          data: run.polygon
+        });
+
+        const color = TERRITORY_COLORS[index % TERRITORY_COLORS.length];
+
+        map.current.addLayer({
+          id: fillId,
+          type: 'fill',
+          source: sourceId,
+          paint: {
+            'fill-color': color,
+            'fill-opacity': 0.3
+          }
+        });
+
+        map.current.addLayer({
+          id: lineId,
+          type: 'line',
+          source: sourceId,
+          paint: {
+            'line-color': color,
+            'line-width': 2,
+            'line-opacity': 0.7
+          }
+        });
+      }
+    });
+
+    const style = map.current.getStyle();
+    if (style && style.layers) {
+      style.layers.forEach(layer => {
+        if (layer.id.startsWith('territory-fill-') && layer.id !== 'territory-fill-layer') {
+          const runId = layer.id.replace('territory-fill-', '');
+          if (!activeRunIds.has(runId)) map.current.removeLayer(layer.id);
+        }
+        if (layer.id.startsWith('territory-line-') && layer.id !== 'territory-line-layer') {
+          const runId = layer.id.replace('territory-line-', '');
+          if (!activeRunIds.has(runId)) map.current.removeLayer(layer.id);
+        }
+      });
+    }
+
+    const sources = map.current.getStyle()?.sources;
+    if (sources) {
+      Object.keys(sources).forEach(sourceId => {
+        if (sourceId.startsWith('territory-source-') && sourceId !== 'territory-source') {
+          const runId = sourceId.replace('territory-source-', '');
+          if (!activeRunIds.has(runId)) map.current.removeSource(sourceId);
+        }
+      });
+    }
+  }, [savedRuns, mapLoaded]);
+
+  // Click & Hover interaction for past territories
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    const clickHandler = (e) => {
+      const features = map.current.queryRenderedFeatures(e.point);
+      const clickedFeature = features.find(f => f.layer.id.startsWith('territory-fill-') && f.layer.id !== 'territory-fill-layer');
+
+      if (clickedFeature) {
+        const runId = clickedFeature.layer.id.replace('territory-fill-', '');
+        const matchingRun = useRunStore.getState().savedRuns.find(r => r.id.toString() === runId);
+        if (matchingRun) {
+          setSelectedRun(matchingRun);
+        }
+      }
+    };
+
+    const mouseMoveHandler = (e) => {
+      const features = map.current.queryRenderedFeatures(e.point);
+      const hit = features.some(f => f.layer.id.startsWith('territory-fill-') && f.layer.id !== 'territory-fill-layer');
+      map.current.getCanvas().style.cursor = hit ? 'pointer' : '';
+    };
+
+    map.current.on('click', clickHandler);
+    map.current.on('mousemove', mouseMoveHandler);
+
+    return () => {
+      map.current.off('click', clickHandler);
+      map.current.off('mousemove', mouseMoveHandler);
+    };
+  }, [mapLoaded]);
+
   const handleToggleRun = () => {
     if (!isRunning) {
       setDistanceKm('0.00');
@@ -262,15 +366,21 @@ function Map() {
         const polygon = turf.convex(turf.featureCollection(coords.map(c => turf.point(c))));
         
         stopRun({
-          id: Date.now().toString(),
+          id: Date.now(),
           gpsPoints: points,
           polygon,
-          distance: parseFloat(distanceKm),
-          duration: Math.floor((Date.now() - startTimeRef.current) / 1000),
+          distance: distanceKm,
+          duration: durationStr,
+          avgPace: paceStr,
           area: areaStr,
           startTime: startTimeRef.current,
-          endTime: Date.now()
+          endTime: Date.now(),
+          date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
         });
+
+        // Hide current active source to avoid duplicating layer locally if it overlaps a saved run
+        const source = map.current.getSource('territory-source');
+        if (source) source.setData({ type: 'FeatureCollection', features: [] });
       }
     }
   };
@@ -310,7 +420,7 @@ function Map() {
         </div>
       )}
 
-      {locationPermission === 'granted' && (
+      {locationPermission === 'granted' && !selectedRun && (
         <div className="bottom-panel">
           <div className="drag-handle-container">
             <div className="drag-handle"></div>
@@ -364,6 +474,14 @@ function Map() {
             {isRunning ? 'Stop Run' : 'Start Run'}
           </button>
         </div>
+      )}
+
+      {selectedRun && (
+        <BottomSheet 
+          run={selectedRun} 
+          onClose={() => setSelectedRun(null)} 
+          onDelete={deleteRun} 
+        />
       )}
     </div>
   );

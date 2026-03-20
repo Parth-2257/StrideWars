@@ -1,11 +1,28 @@
 import { create } from 'zustand';
 
-const useRunStore = create((set) => ({
+const loadRuns = () => {
+  try {
+    const data = localStorage.getItem('stridewars_runs');
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+const saveRuns = (runs) => {
+  try {
+    localStorage.setItem('stridewars_runs', JSON.stringify(runs));
+  } catch (e) {
+    console.error("Failed to save runs", e);
+  }
+};
+
+const useRunStore = create((set, get) => ({
   isRunning: false,
   gpsPoints: [],
   startTime: null,
   currentLocation: null,
-  completedRuns: [],
+  savedRuns: loadRuns(),
 
   startRun: () => set({
     isRunning: true,
@@ -20,22 +37,28 @@ const useRunStore = create((set) => ({
   setCurrentLocation: (loc) => set({ currentLocation: loc }),
 
   stopRun: (completedRunData) => set((state) => {
-    // If completedRunData is provided (meaning valid run with >= 3 points), save it
     if (completedRunData) {
+      const newRuns = [...state.savedRuns, completedRunData];
+      saveRuns(newRuns);
       return {
         isRunning: false,
         gpsPoints: [],
         startTime: null,
-        completedRuns: [...state.completedRuns, completedRunData]
+        savedRuns: newRuns
       };
     }
-    // Otherwise just reset silently
     return {
       isRunning: false,
       gpsPoints: [],
       startTime: null,
     };
   }),
+
+  deleteRun: (id) => set((state) => {
+    const newRuns = state.savedRuns.filter(r => r.id !== id);
+    saveRuns(newRuns);
+    return { savedRuns: newRuns };
+  })
 }));
 
 export default useRunStore;
