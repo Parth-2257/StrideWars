@@ -16,6 +16,7 @@ function Map() {
   const markerEl = useRef(null);
   const watchId = useRef(null);
   const statsInterval = useRef(null);
+  const locationInitialized = useRef(false);
 
   const isRunningRef = useRef(false);
   const gpsPointsRef = useRef([]);
@@ -184,6 +185,9 @@ function Map() {
   };
 
   useEffect(() => {
+    if (locationInitialized.current) return;
+    locationInitialized.current = true;
+
     if (!('geolocation' in navigator)) {
       setLocationPermission('denied');
       return;
@@ -224,13 +228,13 @@ function Map() {
         watchId.current = navigator.geolocation.watchPosition(
           handleLocationUpdate,
           handleLocationError,
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
         );
       },
       (err) => {
         setLocationPermission('denied');
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
 
     return () => {
