@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@maptiler/sdk": "^3.11.1",
+    "@supabase/supabase-js": "^2.100.0",
     "@turf/turf": "^7.3.4",
     "mapbox-gl": "^3.20.0",
     "react": "^19.2.4",

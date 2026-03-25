@@ -223,6 +223,53 @@ function Map() {
 
         map.current.on('load', () => {
           setMapLoaded(true);
+          const currentSavedRuns = useRunStore.getState().savedRuns;
+          currentSavedRuns.forEach((run, index) => {
+            const sourceId = `territory-source-${run.id}`;
+            const fillId = `territory-fill-${run.id}`;
+            const lineId = `territory-line-${run.id}`;
+
+            if (!map.current.getSource(sourceId)) {
+              map.current.addSource(sourceId, {
+                type: 'geojson',
+                data: run.polygon
+              });
+
+              const color = TERRITORY_COLORS[index % TERRITORY_COLORS.length];
+
+              map.current.addLayer({
+                id: fillId,
+                type: 'fill',
+                source: sourceId,
+                paint: {
+                  'fill-color': color,
+                  'fill-opacity': 0.3
+                }
+              });
+
+              map.current.addLayer({
+                id: lineId,
+                type: 'line',
+                source: sourceId,
+                paint: {
+                  'line-color': color,
+                  'line-width': 2,
+                  'line-opacity': 0.7
+                }
+              });
+
+              map.current.on('click', fillId, (e) => {
+                const matchingRun = useRunStore.getState().savedRuns.find(r => r.id.toString() === run.id.toString());
+                if (matchingRun) setSelectedRun(matchingRun);
+              });
+              map.current.on('mouseenter', fillId, () => {
+                map.current.getCanvas().style.cursor = 'pointer';
+              });
+              map.current.on('mouseleave', fillId, () => {
+                map.current.getCanvas().style.cursor = '';
+              });
+            }
+          });
         });
 
         watchId.current = navigator.geolocation.watchPosition(
@@ -288,6 +335,17 @@ function Map() {
             'line-opacity': 0.7
           }
         });
+
+        map.current.on('click', fillId, (e) => {
+          const matchingRun = useRunStore.getState().savedRuns.find(r => r.id.toString() === run.id.toString());
+          if (matchingRun) setSelectedRun(matchingRun);
+        });
+        map.current.on('mouseenter', fillId, () => {
+          map.current.getCanvas().style.cursor = 'pointer';
+        });
+        map.current.on('mouseleave', fillId, () => {
+          map.current.getCanvas().style.cursor = '';
+        });
       }
     });
 
@@ -316,37 +374,7 @@ function Map() {
     }
   }, [savedRuns, mapLoaded]);
 
-  // Click & Hover interaction for past territories
-  useEffect(() => {
-    if (!mapLoaded || !map.current) return;
 
-    const clickHandler = (e) => {
-      const features = map.current.queryRenderedFeatures(e.point);
-      const clickedFeature = features.find(f => f.layer.id.startsWith('territory-fill-') && f.layer.id !== 'territory-fill-layer');
-
-      if (clickedFeature) {
-        const runId = clickedFeature.layer.id.replace('territory-fill-', '');
-        const matchingRun = useRunStore.getState().savedRuns.find(r => r.id.toString() === runId);
-        if (matchingRun) {
-          setSelectedRun(matchingRun);
-        }
-      }
-    };
-
-    const mouseMoveHandler = (e) => {
-      const features = map.current.queryRenderedFeatures(e.point);
-      const hit = features.some(f => f.layer.id.startsWith('territory-fill-') && f.layer.id !== 'territory-fill-layer');
-      map.current.getCanvas().style.cursor = hit ? 'pointer' : '';
-    };
-
-    map.current.on('click', clickHandler);
-    map.current.on('mousemove', mouseMoveHandler);
-
-    return () => {
-      map.current.off('click', clickHandler);
-      map.current.off('mousemove', mouseMoveHandler);
-    };
-  }, [mapLoaded]);
 
   const handleToggleRun = () => {
     if (!isRunning) {
@@ -484,7 +512,15 @@ function Map() {
         <BottomSheet 
           run={selectedRun} 
           onClose={() => setSelectedRun(null)} 
-          onDelete={deleteRun} 
+          onDelete={(id) => {
+            deleteRun(id);
+            const fillId = `territory-fill-${id}`;
+            const lineId = `territory-line-${id}`;
+            const sourceId = `territory-source-${id}`;
+            if (map.current.getLayer(fillId)) map.current.removeLayer(fillId);
+            if (map.current.getLayer(lineId)) map.current.removeLayer(lineId);
+            if (map.current.getSource(sourceId)) map.current.removeSource(sourceId);
+          }} 
         />
       )}
     </div>
